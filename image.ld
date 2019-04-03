@@ -25,7 +25,7 @@ SECTIONS {
 
 
   /* allocate fat stack                    */
-  .       = . + 0x00100000;
+  .       = . + 0x00040000;
   tos_fatty_boi = .;
 
 }

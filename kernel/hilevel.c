@@ -116,7 +116,7 @@ void hilevel_handler_rst( ctx_t* ctx              ) {
 
   //set tos for all possible PCBs
   for (int i = 0; i < maximum_number_of_PCBs; i++){
-    pcb[ i ].tos = (uint32_t) (&tos_fatty_boi - (i * 0x00001000));
+    pcb[ i ].tos = (uint32_t) (&tos_fatty_boi) - (i * 0x00001000);
     PL011_putc( UART0, 'F',      true );
         // pcb[ i ].tos = tos_fatty_boi - (i * 0x00001000);
   }
@@ -205,7 +205,7 @@ void hilevel_handler_svc( ctx_t* ctx, uint32_t id ) {
 
       pcb[ new_pcb ].pid    = number_of_pcbs;
       memcpy(&pcb[ new_pcb ].ctx, ctx, sizeof(ctx_t)); //memcpy cpu status
-      pcb[ new_pcb ].ctx.pc = ctx->pc; //update child's program counter
+      // pcb[ new_pcb ].ctx.pc = ctx->pc; //update child's program counter
 
       int offset = current->tos - ctx->sp;                        // find offset between parent's tos and sp
       pcb[ new_pcb ].ctx.sp = pcb[ new_pcb ].tos - offset;        //update child's stack pointer
@@ -232,6 +232,9 @@ void hilevel_handler_svc( ctx_t* ctx, uint32_t id ) {
       ctx->pc   = ( uint32_t )( ctx->gpr[ 0 ] );
       ctx->sp = current->tos;
       PL011_putc( UART0, 'E',      true ); //Debugging check
+      if(ctx->pc == (uint32_t)(NULL)) {
+        PL011_putc( UART0, 'N',      true );
+      }
         // schedule( ctx ); NEVER UNCOMMENT. BEWARE JLO CODE
       break;
     }
