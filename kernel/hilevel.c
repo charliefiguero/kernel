@@ -6,13 +6,11 @@
  */
 
 #include "hilevel.h"
-#define maximum_number_of_PCBs 16
+#define maximum_number_of_PCBs 64
 #define size_of_stack 0x00001000
 
 int number_of_pcbs = 1;
 pcb_t pcb[ maximum_number_of_PCBs ]; pcb_t* current = NULL;
-
-// pcb_t* largest_process = NULL; //Used for scheduling
 
 void dispatch( ctx_t* ctx, pcb_t* prev, pcb_t* next ) {
   char prev_pid = '?', next_pid = '?';
@@ -34,6 +32,10 @@ void dispatch( ctx_t* ctx, pcb_t* prev, pcb_t* next ) {
     PL011_putc( UART0, ']',      true );
 
     current = next;                             // update   executing index   to P_{next}
+
+    if (prev->status != STATUS_TERMINATED){
+      prev->status = STATUS_READY; }
+    current->status = STATUS_EXECUTING;
 
   return;
 }
@@ -57,7 +59,7 @@ void schedule( ctx_t* ctx ) {
   int process_size = 0;
 
   for (int i = 0; i < number_of_pcbs; i++){
-    if(pcb[ i ].status != STATUS_TERMINATED){
+    if(pcb[ i ].status == STATUS_READY || pcb[ i ].status == STATUS_WAITING || pcb[ i ].status == STATUS_EXECUTING){
       int s = pcb[ i ].priority + pcb[ i ].age;
       if (s >= process_size){
         largest_process = &pcb[ i ];
@@ -107,16 +109,17 @@ void hilevel_handler_rst( ctx_t* ctx              ) {
 
   memset( &pcb[ 0 ], 0, sizeof( pcb_t ) );     // initialise 0-th PCB = P_1
   pcb[ 0 ].pid      = 1;
-  pcb[ 0 ].status   = STATUS_CREATED;
+  pcb[ 0 ].status   = STATUS_READY;
   pcb[ 0 ].ctx.cpsr = 0x50;
   pcb[ 0 ].ctx.pc   = ( uint32_t )( &main_console );
   pcb[ 0 ].ctx.sp   = ( uint32_t )( &tos_fatty_boi );
-  pcb[ 0 ].priority = 2;
+  pcb[ 0 ].priority = 1;
   pcb[ 0 ].age = 0;
 
   //set tos for all possible PCBs
   for (int i = 0; i < maximum_number_of_PCBs; i++){
     pcb[ i ].tos = (uint32_t) (&tos_fatty_boi) - (i * 0x00001000);
+    pcb[ i ].status = STATUS_CREATED;
     PL011_putc( UART0, 'F',      true );
         // pcb[ i ].tos = tos_fatty_boi - (i * 0x00001000);
   }
@@ -213,7 +216,7 @@ void hilevel_handler_svc( ctx_t* ctx, uint32_t id ) {
 
       pcb[ new_pcb ].priority = 1;
       pcb[ new_pcb ].age = 0;
-      pcb[ new_pcb ].status   = STATUS_CREATED;
+      pcb[ new_pcb ].status   = STATUS_READY;
 
       //if child return 0, if parent return id of child
       pcb[ new_pcb ].ctx.gpr[0] = 0;
@@ -232,9 +235,11 @@ void hilevel_handler_svc( ctx_t* ctx, uint32_t id ) {
       ctx->pc   = ( uint32_t )( ctx->gpr[ 0 ] );
       ctx->sp = current->tos;
       PL011_putc( UART0, 'E',      true ); //Debugging check
+
       if(ctx->pc == (uint32_t)(NULL)) {
         PL011_putc( UART0, 'N',      true );
       }
+
         // schedule( ctx ); NEVER UNCOMMENT. BEWARE JLO CODE
       break;
     }
@@ -243,6 +248,13 @@ void hilevel_handler_svc( ctx_t* ctx, uint32_t id ) {
       pid_t given_pid = ( pid_t )( ctx->gpr[ 0 ] );
       pcb[ given_pid - 1 ].status = STATUS_TERMINATED;
       break;
+    }
+
+    case 0x07 : {// 0x07 => nice( pid_t pid, int x )
+      uint32_t pid_to_update = ( uint32_t )( ctx->gpr[ 0 ] );
+      uint32_t new_priority = ( uint32_t )( ctx->gpr[ 1 ] );
+
+      pcb[pid_to_update - 1].priority = new_priority;
     }
 
     default   : { // 0x?? => unknown/unsupported

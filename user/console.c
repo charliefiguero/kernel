@@ -37,6 +37,7 @@ void gets( char* x, int n ) {
 extern void main_P3();
 extern void main_P4();
 extern void main_P5();
+extern void main_dining_philosophers();
 
 void* load( char* x ) {
   if     ( 0 == strcmp( x, "P3" ) ) {
@@ -47,6 +48,9 @@ void* load( char* x ) {
   }
   else if( 0 == strcmp( x, "P5" ) ) {
     return &main_P5;
+  }
+  else if( 0 == strcmp( x, "dp" )) {
+    return &main_dining_philosophers;
   }
 
   return NULL;
@@ -103,6 +107,12 @@ void main_console() {
       int   s   = atoi( strtok( NULL, " " ) );
 
       kill( pid, s );
+    }
+    else if( 0 == strcmp( p, "nice" ) ) {
+      pid_t pid = atoi( strtok( NULL, " " ) );
+      int   s   = atoi( strtok( NULL, " " ) );
+
+      nice( pid, s );
     }
     else {
       puts( "unknown command\n", 16 );
